@@ -27,3 +27,6 @@ def update_employee(employee_id: str, payload: EmployeeIn):
         employee_id,
         payload.model_dump(mode="json")
     )
+@router.delete("/employees/{employee_id}")
+def delete_employee(employee_id: str):
+    return employee_service.delete(employee_id)
