@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-
+from datetime import date
 from models import EmployeeIn
 from services import employee_service
 
@@ -10,7 +10,15 @@ router = APIRouter(tags=["employees"])
 def create_employee(payload: EmployeeIn):
     return employee_service.create(payload.model_dump(mode="json"))
 @router.get("/employees")
-def list_employees():
+def list_employees(hiredFrom: date | None = None, hiredTo: date | None = None):
+    if hiredFrom or hiredTo:
+        return {
+            "employees": employee_service.list_by_hire_date(
+                hiredFrom.isoformat() if hiredFrom else None,
+                hiredTo.isoformat() if hiredTo else None
+            )
+        }
+
     return {"employees": employee_service.list_all()}
 
 
