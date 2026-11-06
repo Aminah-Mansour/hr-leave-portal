@@ -4,7 +4,7 @@ import os
 import boto3
 from strands import tool
 
-MODEL_ID = "global.anthropic.claude-sonnet-5"
+MODEL_ID = "us.amazon.nova-2-lite-v1:0"
 
 bedrock = boto3.client("bedrock-runtime")
 sns = boto3.client("sns")
