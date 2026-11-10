@@ -1,18 +1,21 @@
 from aws_cdk import (
     CfnOutput,
     Duration,
+    Aws,
     RemovalPolicy,
     Stack,
     aws_apigateway as apigw,
     aws_cognito as cognito,
     aws_dynamodb as dynamodb,
     aws_lambda as lambda_,
+    aws_iam as iam,
     aws_ssm as ssm,
 )
 from constructs import Construct
 
 # The build script publishes the layer's Version ARN to this SSM parameter.
 LAYER_ARN_PARAM = "/hr-leave-portal/fastapi-layer-arn"
+UI_ORIGIN_PARAMETER = "/hr-leave-portal/ui-origin"
 
 
 class BackendStack(Stack):
@@ -58,7 +61,20 @@ class BackendStack(Stack):
             layers=[fastapi_layer],
             timeout=Duration.seconds(10),
             memory_size=512,
-            environment={"TABLE_NAME": table.table_name},
+            environment={
+                "TABLE_NAME": table.table_name,
+                "CORS_ORIGIN": "*",
+                "CORS_ORIGIN_PARAMETER": UI_ORIGIN_PARAMETER,
+            },
+        )
+
+        api_function.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["ssm:GetParameter"],
+                resources=[
+                    f"arn:{Aws.PARTITION}:ssm:{Aws.REGION}:{Aws.ACCOUNT_ID}:parameter{UI_ORIGIN_PARAMETER}"
+                ],
+            )
         )
 
         table.grant_read_write_data(api_function)

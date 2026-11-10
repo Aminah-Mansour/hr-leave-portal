@@ -79,4 +79,14 @@ class AgentRuntimeStack(Stack):
                 ])
         )
 
-        CfnOutput(self, "AgentRuntimeArn", value=agent_runtime.agent_runtime_arn)
+        self.agent_runtime_arn = agent_runtime.agent_runtime_arn
+        CfnOutput(self, "AgentRuntimeArn", value=self.agent_runtime_arn)
+        self.agent_runtime_url = Fn.join(
+            "", ["https://bedrock-agentcore.", Aws.REGION, ".amazonaws.com"]
+        )
+        CfnOutput(
+            self,
+            "AgentRuntimeUrl",
+            value=self.agent_runtime_url,
+            description="AgentCore Runtime invocation base URL",
+        )
