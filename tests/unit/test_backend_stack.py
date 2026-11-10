@@ -10,11 +10,9 @@ def _backend_template():
     return assertions.Template.from_stack(stack)
 
 
-def test_dynamodb_table_has_pk_sk_and_by_start_date_local_secondary_index():
-    # Arrange
+def test_dynamodb_table_has_pk_sk_and_gsi1():
     template = _backend_template()
 
-    # Act / Assert
     template.has_resource_properties(
         "AWS::DynamoDB::Table",
         {
@@ -23,17 +21,14 @@ def test_dynamodb_table_has_pk_sk_and_by_start_date_local_secondary_index():
                 {"AttributeName": "PK", "KeyType": "HASH"},
                 {"AttributeName": "SK", "KeyType": "RANGE"},
             ],
-            "LocalSecondaryIndexes": assertions.Match.array_with(
+            "GlobalSecondaryIndexes": assertions.Match.array_with(
                 [
                     assertions.Match.object_like(
                         {
-                            "IndexName": "ByStartDate",
+                            "IndexName": "GSI1",
                             "KeySchema": [
-                                {"AttributeName": "PK", "KeyType": "HASH"},
-                                {
-                                    "AttributeName": "startDate",
-                                    "KeyType": "RANGE",
-                                },
+                                {"AttributeName": "GSI1PK", "KeyType": "HASH"},
+                                {"AttributeName": "GSI1SK", "KeyType": "RANGE"},
                             ],
                         }
                     )

@@ -61,6 +61,7 @@ class BackendStack(Stack):
             layers=[fastapi_layer],
             timeout=Duration.seconds(10),
             memory_size=512,
+            tracing=lambda_.Tracing.ACTIVE,
             environment={
                 "TABLE_NAME": table.table_name,
                 "CORS_ORIGIN": "*",
