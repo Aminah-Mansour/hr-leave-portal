@@ -13,6 +13,8 @@ from constructs import Construct
 
 # build_and_push_agent.sh stores the pushed image URI in this SSM parameter.
 AGENT_IMAGE_URI_PARAM = "/hr-leave-portal/agent-image-uri"
+# Bedrock model used by the HR agent.
+AGENT_MODEL_ID = "us.amazon.nova-2-lite-v1:0"
 
 
 class AgentRuntimeStack(Stack):
@@ -49,7 +51,17 @@ class AgentRuntimeStack(Stack):
                 "HR_EMAIL_TOPIC_ARN": hr_email_topic.topic_arn,
             })
 
-        table.grant_read_write_data(agent_runtime.role)
+        agent_runtime.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=[
+                    "dynamodb:PutItem",
+                    "dynamodb:GetItem",
+                    "dynamodb:Query",
+                    "dynamodb:DeleteItem",
+                ],
+                resources=[table.table_arn, f"{table.table_arn}/index/*"])
+            )
+           
         hr_email_topic.grant_publish(agent_runtime.role)
 
         agent_runtime.add_to_role_policy(
