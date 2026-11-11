@@ -63,7 +63,11 @@ aws_region = (
 
 notifications = NotificationStack(app, "HrLeavePortalNotifications")
 
-backend = BackendStack(app, "HrLeavePortalBackend")
+backend = BackendStack(
+    app,
+    "HrLeavePortalBackend",
+    ui_origin="https://d13a73sfknfq9f.cloudfront.net",
+)
 
 StateMachineStack(
     app,

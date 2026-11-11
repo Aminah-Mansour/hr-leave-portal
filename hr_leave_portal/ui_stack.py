@@ -9,6 +9,7 @@ from aws_cdk import (
     aws_s3 as s3,
     aws_s3_deployment as s3deploy,
     aws_ssm as ssm,
+    aws_wafv2 as wafv2,
 )
 from constructs import Construct
 
@@ -82,11 +83,37 @@ class UiStack(Stack):
             runtime=cloudfront.FunctionRuntime.JS_2_0,
             comment="Provides deployment-time stack outputs to the UI at startup.",
         )
+        web_acl = wafv2.CfnWebACL(
+            self,
+            "UiWebAcl",
+            scope="CLOUDFRONT",
+            default_action=wafv2.CfnWebACL.DefaultActionProperty(allow={}),
+            visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(
+                cloud_watch_metrics_enabled=True,
+                metric_name="UiWebAcl",
+                sampled_requests_enabled=True),
+            rules=[
+                wafv2.CfnWebACL.RuleProperty(
+                    name="AWSManagedRulesCommonRuleSet",
+                    priority=0,
+                    statement=wafv2.CfnWebACL.StatementProperty(
+                        managed_rule_group_statement=wafv2.CfnWebACL.ManagedRuleGroupStatementProperty(
+                            vendor_name="AWS",
+                            name="AWSManagedRulesCommonRuleSet")),
+                    # Let the managed group decide: it blocks, we don't override.
+                    override_action=wafv2.CfnWebACL.OverrideActionProperty(none={}),
+                    visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(
+                        cloud_watch_metrics_enabled=True,
+                        metric_name="CommonRuleSet",
+                        sampled_requests_enabled=True)),
+            ])
+
 
         distribution = cloudfront.Distribution(
             self,
             "UiDistribution",
             default_root_object="index.html",
+            web_acl_id=web_acl.attr_arn,
             default_behavior=cloudfront.BehaviorOptions(
                 origin=origins.S3BucketOrigin.with_origin_access_control(website_bucket),
                 viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,

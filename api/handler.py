@@ -20,7 +20,7 @@ def _cors_origin() -> str:
     """Read the deployed UI origin, using the configured fallback before UI deploy."""
     global _cors_origin_cache
     parameter_name = os.environ.get("CORS_ORIGIN_PARAMETER")
-    fallback = os.environ.get("CORS_ORIGIN", "*")
+    fallback = os.environ.get("CORS_ORIGIN", "")
     if not parameter_name:
         return fallback
 

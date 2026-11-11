@@ -19,8 +19,17 @@ UI_ORIGIN_PARAMETER = "/hr-leave-portal/ui-origin"
 
 
 class BackendStack(Stack):
-    def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
+    def __init__(
+        self,
+        scope: Construct,
+        construct_id: str,
+        ui_origin: str | None = None,
+        **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
+        # Only the deployed front end, plus the Vite dev server for local work.
+        allowed_origins = ["http://localhost:5173"]
+        if ui_origin:
+            allowed_origins.append(ui_origin)
 
         table = dynamodb.Table(
             self,
@@ -30,6 +39,9 @@ class BackendStack(Stack):
             ),
             sort_key=dynamodb.Attribute(name="SK", type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            encryption=dynamodb.TableEncryption.AWS_MANAGED,
+            point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
+                point_in_time_recovery_enabled=True),
             removal_policy=RemovalPolicy.DESTROY,
         )
 
@@ -64,7 +76,7 @@ class BackendStack(Stack):
             tracing=lambda_.Tracing.ACTIVE,
             environment={
                 "TABLE_NAME": table.table_name,
-                "CORS_ORIGIN": "*",
+                "CORS_ORIGIN": "",
                 "CORS_ORIGIN_PARAMETER": UI_ORIGIN_PARAMETER,
             },
         )
@@ -105,8 +117,8 @@ class BackendStack(Stack):
             "HrApi",
             handler=api_function,
             default_cors_preflight_options=apigw.CorsOptions(
-                allow_origins=apigw.Cors.ALL_ORIGINS,
-                allow_methods=apigw.Cors.ALL_METHODS,
+                allow_origins=allowed_origins,
+                allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             ),
             default_method_options=apigw.MethodOptions(
                 authorization_type=apigw.AuthorizationType.COGNITO,
