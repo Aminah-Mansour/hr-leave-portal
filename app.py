@@ -43,19 +43,37 @@ def deployed_stack_outputs(stack_name: str) -> dict[str, str]:
     }
 
 
-backend_outputs = deployed_stack_outputs("HrLeavePortalBackend")
-agent_runtime_outputs = deployed_stack_outputs("HrLeavePortalAgentRuntime")
-required_backend_outputs = ("ApiUrl", "UserPoolId", "UserPoolClientId")
-missing_backend_outputs = [
-    key for key in required_backend_outputs if key not in backend_outputs
-]
-if missing_backend_outputs:
-    raise RuntimeError(
-        "HrLeavePortalBackend is missing required outputs: "
-        + ", ".join(missing_backend_outputs)
-    )
-if "AgentRuntimeArn" not in agent_runtime_outputs:
-    raise RuntimeError("HrLeavePortalAgentRuntime is missing AgentRuntimeArn")
+offline_synth = os.environ.get("CI_OFFLINE_SYNTH") == "1"
+
+if offline_synth:
+    backend_outputs = {
+        "ApiUrl": "https://example.com",
+        "UserPoolId": "us-east-1_example",
+        "UserPoolClientId": "example-client",
+    }
+    agent_runtime_outputs = {
+        "AgentRuntimeArn": (
+            "arn:aws:bedrock-agentcore:us-east-1:"
+            "123456789012:runtime/example"
+        )
+    }
+else:
+    backend_outputs = deployed_stack_outputs("HrLeavePortalBackend")
+    agent_runtime_outputs = deployed_stack_outputs("HrLeavePortalAgentRuntime")
+
+    required_backend_outputs = ("ApiUrl", "UserPoolId", "UserPoolClientId")
+    missing_backend_outputs = [
+        key for key in required_backend_outputs if key not in backend_outputs
+    ]
+    if missing_backend_outputs:
+        raise RuntimeError(
+            "HrLeavePortalBackend is missing required outputs: "
+            + ", ".join(missing_backend_outputs)
+        )
+    if "AgentRuntimeArn" not in agent_runtime_outputs:
+        raise RuntimeError(
+            "HrLeavePortalAgentRuntime is missing AgentRuntimeArn"
+        )
 
 aws_region = (
     os.environ.get("CDK_DEFAULT_REGION")
