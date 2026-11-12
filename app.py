@@ -2,6 +2,8 @@
 import os
 
 import aws_cdk as cdk
+from aws_cdk import Validations
+from cdk_nag import AwsSolutionsChecks
 import boto3
 from hr_leave_portal.agent_runtime_stack import AgentRuntimeStack
 from hr_leave_portal.backend_stack import BackendStack
@@ -11,6 +13,8 @@ from hr_leave_portal.ui_stack import UiStack
 
 app = cdk.App()
 
+# Checks every construct in every stack against the AWS Solutions rule pack.
+#Validations.of(app).add_plugins(AwsSolutionsChecks(app, verbose=True))
 
 def deployed_stack_outputs(stack_name: str) -> dict[str, str]:
     """Read published values from an already-deployed stack.
