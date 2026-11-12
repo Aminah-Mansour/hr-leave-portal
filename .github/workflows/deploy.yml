@@ -56,7 +56,7 @@ jobs:
           cd ui && npm install
 
       - name: cdk synth (runs cdk-nag when enabled in app.py) — BLOCKS
-        run: uv run cdk synth --quiet
+        run: uv run cdk synth --quiet -c hrEmail="test@example.com"
 
       - name: Dependency scan (Python) — WARN
         run: uvx pip-audit || echo "::warning::pip-audit reported vulnerabilities, triage them"
