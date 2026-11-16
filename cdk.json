@@ -1,5 +1,5 @@
 {
-  "app": "uv run python app.py",
+  "app": "npm --prefix ui run build && uv run python app.py",
   "watch": {
     "include": [
       "**"

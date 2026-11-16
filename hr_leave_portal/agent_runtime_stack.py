@@ -3,6 +3,7 @@ from aws_cdk import (
     CfnOutput,
     Fn,
     Stack,
+    aws_bedrock as bedrock,
     aws_bedrockagentcore as agentcore,
     aws_cognito as cognito,
     aws_dynamodb as dynamodb,
@@ -13,6 +14,8 @@ from constructs import Construct
 
 # build_and_push_agent.sh stores the pushed image URI in this SSM parameter.
 AGENT_IMAGE_URI_PARAM = "/hr-leave-portal/agent-image-uri"
+# Bedrock model used by the HR agent.
+AGENT_MODEL_ID = "us.amazon.nova-2-lite-v1:0"
 
 
 class AgentRuntimeStack(Stack):
@@ -26,7 +29,30 @@ class AgentRuntimeStack(Stack):
         user_pool_client: cognito.IUserPoolClient,
         **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
-
+        guardrail = bedrock.CfnGuardrail(
+            self,
+            "HrAgentGuardrail",
+            name="hr-agent-guardrail",
+            blocked_input_messaging="I can't help with that request.",
+            blocked_outputs_messaging="I can't share that.",
+            # Stop the model repeating personal data back out, even if a tool returned it.
+            sensitive_information_policy_config=bedrock.CfnGuardrail.SensitiveInformationPolicyConfigProperty(
+                pii_entities_config=[
+                    bedrock.CfnGuardrail.PiiEntityConfigProperty(
+                        type="EMAIL", action="ANONYMIZE"),
+                    bedrock.CfnGuardrail.PiiEntityConfigProperty(
+                        type="PHONE", action="ANONYMIZE"),
+                    bedrock.CfnGuardrail.PiiEntityConfigProperty(
+                        type="US_SOCIAL_SECURITY_NUMBER", action="BLOCK"),
+                ]),
+            content_policy_config=bedrock.CfnGuardrail.ContentPolicyConfigProperty(
+                filters_config=[
+                    bedrock.CfnGuardrail.ContentFilterConfigProperty(
+                        type="PROMPT_ATTACK",
+                        input_strength="HIGH",
+                        output_strength="NONE"),
+                ]),
+        )
         agent_image_uri = ssm.StringParameter.value_for_string_parameter(
             self, AGENT_IMAGE_URI_PARAM
         )
@@ -47,9 +73,25 @@ class AgentRuntimeStack(Stack):
             environment_variables={
                 "TABLE_NAME": table.table_name,
                 "HR_EMAIL_TOPIC_ARN": hr_email_topic.topic_arn,
+                "GUARDRAIL_ID": guardrail.attr_guardrail_id,
+                "GUARDRAIL_VERSION": guardrail.attr_version,
             })
-
-        table.grant_read_write_data(agent_runtime.role)
+        agent_runtime.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["bedrock:ApplyGuardrail"],
+                resources=[guardrail.attr_guardrail_arn])
+        )
+        agent_runtime.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=[
+                    "dynamodb:PutItem",
+                    "dynamodb:GetItem",
+                    "dynamodb:Query",
+                    "dynamodb:DeleteItem",
+                ],
+                resources=[table.table_arn, f"{table.table_arn}/index/*"])
+            )
+           
         hr_email_topic.grant_publish(agent_runtime.role)
 
         agent_runtime.add_to_role_policy(
@@ -79,4 +121,14 @@ class AgentRuntimeStack(Stack):
                 ])
         )
 
-        CfnOutput(self, "AgentRuntimeArn", value=agent_runtime.agent_runtime_arn)
+        self.agent_runtime_arn = agent_runtime.agent_runtime_arn
+        CfnOutput(self, "AgentRuntimeArn", value=self.agent_runtime_arn)
+        self.agent_runtime_url = Fn.join(
+            "", ["https://bedrock-agentcore.", Aws.REGION, ".amazonaws.com"]
+        )
+        CfnOutput(
+            self,
+            "AgentRuntimeUrl",
+            value=self.agent_runtime_url,
+            description="AgentCore Runtime invocation base URL",
+        )

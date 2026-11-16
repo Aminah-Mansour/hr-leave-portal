@@ -52,3 +52,9 @@ def list_by_hire_date(hired_from: str | None, hired_to: str | None) -> list[dict
             KeyConditionExpression=condition
         )
         return response["Items"]
+def list_for_sub(sub: str) -> list[dict]:
+    employees = list_all()
+    return [
+        employee for employee in employees
+        if employee.get("cognitoSub") == sub
+    ]

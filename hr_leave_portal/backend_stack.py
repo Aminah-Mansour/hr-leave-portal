@@ -1,23 +1,37 @@
 from aws_cdk import (
+    Acknowledgment,
     CfnOutput,
     Duration,
+    Aws,
     RemovalPolicy,
     Stack,
+    Validations,
     aws_apigateway as apigw,
     aws_cognito as cognito,
     aws_dynamodb as dynamodb,
     aws_lambda as lambda_,
+    aws_iam as iam,
     aws_ssm as ssm,
 )
 from constructs import Construct
 
 # The build script publishes the layer's Version ARN to this SSM parameter.
 LAYER_ARN_PARAM = "/hr-leave-portal/fastapi-layer-arn"
+UI_ORIGIN_PARAMETER = "/hr-leave-portal/ui-origin"
 
 
 class BackendStack(Stack):
-    def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
+    def __init__(
+        self,
+        scope: Construct,
+        construct_id: str,
+        ui_origin: str | None = None,
+        **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
+        # Only the deployed front end, plus the Vite dev server for local work.
+        allowed_origins = ["http://localhost:5173"]
+        if ui_origin:
+            allowed_origins.append(ui_origin)
 
         table = dynamodb.Table(
             self,
@@ -27,6 +41,9 @@ class BackendStack(Stack):
             ),
             sort_key=dynamodb.Attribute(name="SK", type=dynamodb.AttributeType.STRING),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            encryption=dynamodb.TableEncryption.AWS_MANAGED,
+            point_in_time_recovery_specification=dynamodb.PointInTimeRecoverySpecification(
+                point_in_time_recovery_enabled=True),
             removal_policy=RemovalPolicy.DESTROY,
         )
 
@@ -58,7 +75,21 @@ class BackendStack(Stack):
             layers=[fastapi_layer],
             timeout=Duration.seconds(10),
             memory_size=512,
-            environment={"TABLE_NAME": table.table_name},
+            tracing=lambda_.Tracing.ACTIVE,
+            environment={
+                "TABLE_NAME": table.table_name,
+                "CORS_ORIGIN": "",
+                "CORS_ORIGIN_PARAMETER": UI_ORIGIN_PARAMETER,
+            },
+        )
+
+        api_function.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["ssm:GetParameter"],
+                resources=[
+                    f"arn:{Aws.PARTITION}:ssm:{Aws.REGION}:{Aws.ACCOUNT_ID}:parameter{UI_ORIGIN_PARAMETER}"
+                ],
+            )
         )
 
         table.grant_read_write_data(api_function)
@@ -88,8 +119,8 @@ class BackendStack(Stack):
             "HrApi",
             handler=api_function,
             default_cors_preflight_options=apigw.CorsOptions(
-                allow_origins=apigw.Cors.ALL_ORIGINS,
-                allow_methods=apigw.Cors.ALL_METHODS,
+                allow_origins=allowed_origins,
+                allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             ),
             default_method_options=apigw.MethodOptions(
                 authorization_type=apigw.AuthorizationType.COGNITO,
@@ -102,4 +133,19 @@ class BackendStack(Stack):
         CfnOutput(self, "UserPoolId", value=self.user_pool.user_pool_id)
         CfnOutput(
             self, "UserPoolClientId", value=self.user_pool_client.user_pool_client_id
+        )
+                # Findings we've read and decided to accept. Keep them last so they're
+        # easy to find, and never add one without a reason.
+        Validations.of(self).acknowledge(
+            Acknowledgment(
+                id="AwsSolutions::AwsSolutions-COG2",
+                reason="WORKSHOP ONLY. MFA is not enabled to keep sign-in to one step. A real "
+                       "HR system must enable it, see /security/conclusion/.",
+            ),
+            Acknowledgment(
+                id="AwsSolutions::AwsSolutions-APIG4",
+                reason="Fires on CORS preflight OPTIONS methods, which must be unauthenticated. "
+                       "Every other method inherits the Cognito authorizer through "
+                       "default_method_options.",
+            ),
         )
