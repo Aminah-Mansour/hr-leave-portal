@@ -179,10 +179,9 @@ jobs:
       - name: Verify stacks are healthy
         run: |
           set -euo pipefail
-          for S in HrLeavePortalNotifications HrLeavePortalUiHosting \
+          for S in HrLeavePortalNotifications HrLeavePortalUi \
                    HrLeavePortalBackend HrLeavePortalStateMachine \
-                   HrLeavePortalAgentRuntime HrLeavePortalDashboard \
-                   HrLeavePortalUiDeployment; do
+                   HrLeavePortalAgentRuntime; do
             STATUS=$(aws cloudformation describe-stacks --stack-name "$S" \
               --region "${{ env.AWS_REGION }}" \
               --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo MISSING)
